@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: roomreserve
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/roomreserve}
+    username: ${DB_USERNAME:roomreserve}
+    password: ${DB_PASSWORD:roomreserve}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+server:
+  port: 8080
