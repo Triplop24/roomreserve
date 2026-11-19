@@ -1,3 +1,4 @@
+
 package dev.portfolio.roomreserve.booking;
 
 import dev.portfolio.roomreserve.booking.dto.BookingResponse;
@@ -9,9 +10,11 @@ import dev.portfolio.roomreserve.room.Room;
 import dev.portfolio.roomreserve.room.RoomRepository;
 import dev.portfolio.roomreserve.room.exception.RoomNotFoundException;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.SQLException;
 import java.util.Locale;
 
 @Service
@@ -32,19 +35,19 @@ public class BookingService {
     @Transactional
     public BookingResponse create(CreateBookingRequest request) {
 
-        // Проверяем корректность времени
+        // Validate booking interval
         if (!request.startAt().isBefore(request.endAt())) {
             throw new InvalidBookingIntervalException();
         }
 
-        // Проверяем существование активной комнаты
+        // Find active room
         Room room = roomRepository
             .findByIdAndActiveTrue(request.roomId())
             .orElseThrow(
                 () -> new RoomNotFoundException(request.roomId())
             );
 
-        // Проверяем пересечение с существующими бронями
+        // Check existing booking conflicts
         boolean overlaps = bookingRepository.existsOverlappingBooking(
             room.getId(),
             BookingStatus.CONFIRMED,
@@ -56,11 +59,12 @@ public class BookingService {
             throw new BookingConflictException();
         }
 
-        // Создаём бронирование
+        // Normalize customer email
         String email = request.customerEmail()
             .trim()
             .toLowerCase(Locale.ROOT);
 
+        // Create booking
         Booking booking = new Booking(
             room,
             email,
@@ -68,9 +72,20 @@ public class BookingService {
             request.endAt()
         );
 
-        Booking savedBooking = bookingRepository.save(booking);
+        try {
+            // Flush to detect database constraint violations
+            Booking savedBooking = bookingRepository.saveAndFlush(booking);
 
-        return BookingResponse.from(savedBooking);
+            return BookingResponse.from(savedBooking);
+
+        } catch (DataIntegrityViolationException ex) {
+
+            if (isExclusionViolation(ex)) {
+                throw new BookingConflictException();
+            }
+
+            throw ex;
+        }
     }
 
     public BookingResponse getById(Long id) {
@@ -92,5 +107,28 @@ public class BookingService {
             );
 
         booking.cancel();
+    }
+
+    /**
+     * PostgreSQL SQLSTATE 23P01:
+     * exclusion_violation.
+     */
+    private boolean isExclusionViolation(Throwable exception) {
+
+        Throwable cause = exception;
+
+        while (cause != null) {
+
+            if (cause instanceof SQLException sqlException) {
+
+                if ("23P01".equals(sqlException.getSQLState())) {
+                    return true;
+                }
+            }
+
+            cause = cause.getCause();
+        }
+
+        return false;
     }
 }
