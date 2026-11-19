@@ -1,6 +1,7 @@
-
 package dev.portfolio.roomreserve.booking;
 
+import dev.portfolio.roomreserve.auth.AppUser;
+import dev.portfolio.roomreserve.auth.AppUserRepository;
 import dev.portfolio.roomreserve.booking.dto.CreateBookingRequest;
 import dev.portfolio.roomreserve.booking.exception.BookingConflictException;
 import dev.portfolio.roomreserve.room.Room;
@@ -26,7 +27,9 @@ import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.*;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.NONE
+)
 @Testcontainers
 class BookingConcurrencyIntegrationTest {
 
@@ -44,7 +47,9 @@ class BookingConcurrencyIntegrationTest {
             .withPassword("roomreserve");
 
     @DynamicPropertySource
-    static void configureDatabase(DynamicPropertyRegistry registry) {
+    static void configureDatabase(
+        DynamicPropertyRegistry registry
+    ) {
         registry.add(
             "spring.datasource.url",
             postgres::getJdbcUrl
@@ -71,12 +76,19 @@ class BookingConcurrencyIntegrationTest {
     private RoomRepository roomRepository;
 
     @Autowired
+    private AppUserRepository userRepository;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void shouldAllowOnlyOneConcurrentBooking() throws Exception {
+    void shouldAllowOnlyOneConcurrentBooking()
+        throws Exception {
 
         Room room = createRoom();
+
+        AppUser firstUser = createUser();
+        AppUser secondUser = createUser();
 
         ExecutorService executor =
             Executors.newFixedThreadPool(2);
@@ -88,7 +100,7 @@ class BookingConcurrencyIntegrationTest {
             Future<Result> first = executor.submit(
                 () -> createBooking(
                     room.getId(),
-                    "first@example.com",
+                    firstUser.getId(),
                     ready,
                     start
                 )
@@ -97,17 +109,15 @@ class BookingConcurrencyIntegrationTest {
             Future<Result> second = executor.submit(
                 () -> createBooking(
                     room.getId(),
-                    "second@example.com",
+                    secondUser.getId(),
                     ready,
                     start
                 )
             );
 
-            // Wait until both threads are ready
             assertThat(ready.await(10, TimeUnit.SECONDS))
                 .isTrue();
 
-            // Start both booking attempts
             start.countDown();
 
             Result firstResult =
@@ -135,10 +145,12 @@ class BookingConcurrencyIntegrationTest {
     void shouldRejectOverlapAtDatabaseLevel() {
 
         Room room = createRoom();
+        AppUser firstUser = createUser();
+        AppUser secondUser = createUser();
 
         Booking first = new Booking(
             room,
-            "first@example.com",
+            firstUser,
             START,
             END
         );
@@ -147,7 +159,7 @@ class BookingConcurrencyIntegrationTest {
 
         Booking second = new Booking(
             room,
-            "second@example.com",
+            secondUser,
             START.plusSeconds(1800),
             END.plusSeconds(1800)
         );
@@ -162,7 +174,7 @@ class BookingConcurrencyIntegrationTest {
 
     private Result createBooking(
         Long roomId,
-        String email,
+        Long userId,
         CountDownLatch ready,
         CountDownLatch start
     ) throws InterruptedException {
@@ -179,10 +191,10 @@ class BookingConcurrencyIntegrationTest {
             bookingService.create(
                 new CreateBookingRequest(
                     roomId,
-                    email,
                     START,
                     END
-                )
+                ),
+                userId
             );
 
             return Result.CREATED;
@@ -201,6 +213,15 @@ class BookingConcurrencyIntegrationTest {
         );
 
         return roomRepository.saveAndFlush(room);
+    }
+
+    private AppUser createUser() {
+        AppUser user = new AppUser(
+            UUID.randomUUID() + "@example.com",
+            "test-password-hash"
+        );
+
+        return userRepository.saveAndFlush(user);
     }
 
     private Long countConfirmedBookings(Long roomId) {

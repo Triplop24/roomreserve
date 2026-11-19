@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 
 public interface BookingRepository
     extends JpaRepository<Booking, Long> {
@@ -23,4 +24,10 @@ public interface BookingRepository
         @Param("startAt") Instant startAt,
         @Param("endAt") Instant endAt
     );
+
+    List<Booking> findByUser_IdOrderByCreatedAtDesc(
+        Long userId
+    );
+
+    List<Booking> findAllByOrderByCreatedAtDesc();
 }

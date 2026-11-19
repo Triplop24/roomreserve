@@ -1,7 +1,9 @@
 package dev.portfolio.roomreserve.booking;
 
+import dev.portfolio.roomreserve.auth.AppUser;
 import dev.portfolio.roomreserve.room.Room;
 import jakarta.persistence.*;
+
 import java.time.Instant;
 
 @Entity
@@ -15,6 +17,10 @@ public class Booking {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "room_id", nullable = false)
     private Room room;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private AppUser user;
 
     @Column(name = "customer_email", nullable = false)
     private String customerEmail;
@@ -35,10 +41,15 @@ public class Booking {
     protected Booking() {
     }
 
-    public Booking(Room room, String customerEmail,
-                   Instant startAt, Instant endAt) {
+    public Booking(
+        Room room,
+        AppUser user,
+        Instant startAt,
+        Instant endAt
+    ) {
         this.room = room;
-        this.customerEmail = customerEmail;
+        this.user = user;
+        this.customerEmail = user.getEmail();
         this.startAt = startAt;
         this.endAt = endAt;
         this.status = BookingStatus.CONFIRMED;
@@ -49,18 +60,35 @@ public class Booking {
         this.status = BookingStatus.CANCELLED;
     }
 
-    public Long getId() { return id; }
+    public Long getId() {
+        return id;
+    }
 
-    public Room getRoom() { return room; }
+    public Room getRoom() {
+        return room;
+    }
 
-    public String getCustomerEmail() { return customerEmail; }
+    public AppUser getUser() {
+        return user;
+    }
 
-    public Instant getStartAt() { return startAt; }
+    public String getCustomerEmail() {
+        return customerEmail;
+    }
 
-    public Instant getEndAt() { return endAt; }
+    public Instant getStartAt() {
+        return startAt;
+    }
 
-    public BookingStatus getStatus() { return status; }
+    public Instant getEndAt() {
+        return endAt;
+    }
 
-    public Instant getCreatedAt() { return createdAt; }
+    public BookingStatus getStatus() {
+        return status;
+    }
 
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 }
