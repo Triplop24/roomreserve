@@ -1,3 +1,4 @@
+
 services:
   db:
     image: postgres:16-alpine
@@ -5,24 +6,33 @@ services:
       POSTGRES_DB: roomreserve
       POSTGRES_USER: roomreserve
       POSTGRES_PASSWORD: roomreserve
+
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB
       interval: 5s
       timeout: 5s
       retries: 10
 
   app:
     build: .
+
     environment:
       DB_URL: jdbc:postgresql://db:5432/roomreserve
       DB_USERNAME: roomreserve
       DB_PASSWORD: roomreserve
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?Set APP_JWT_SECRET before starting}
+
     ports:
       - "${APP_PORT:-8080}:8080"
+
     depends_on:
       db:
         condition: service_healthy
